@@ -534,6 +534,36 @@ func (b *Board) GetCards(extraArgs ...Arguments) (cards []*Card, err error) {
 	return
 }
 
+// GetCardsWithFilter maps to https://developer.atlassian.com/cloud/trello/rest/api-group-boards/#api-boards-id-cards-get
+func (b *Board) GetCardsWithFilter(filter string, extraArgs ...Arguments) (cards []*Card, err error) {
+	args := flattenArguments(extraArgs)
+	path := fmt.Sprintf("boards/%s/cards/%s", b.ID, filter)
+
+	err = b.client.Get(path, args, &cards)
+
+	// Naive implementation would return here. To make sure we get all
+	// cards, we begin
+	if len(cards) > 0 {
+		moreCards := true
+		for moreCards {
+			nextCardBatch := make([]*Card, 0)
+			args["before"] = earliestCardID(cards)
+			err = b.client.Get(path, args, &nextCardBatch)
+			if len(nextCardBatch) > 0 {
+				cards = append(cards, nextCardBatch...)
+			} else {
+				moreCards = false
+			}
+		}
+	}
+
+	for i := range cards {
+		cards[i].SetClient(b.client)
+	}
+
+	return
+}
+
 // GetCards retrieves all Cards in a List or an error if something goes wrong.
 func (l *List) GetCards(extraArgs ...Arguments) (cards []*Card, err error) {
 	args := flattenArguments(extraArgs)
